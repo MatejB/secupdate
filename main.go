@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"os"
+	"os/exec"
 )
 
 func main() {
@@ -21,6 +22,21 @@ func main() {
 	host := os.Getenv("SU_HOST")
 	port := os.Getenv("SU_PORT")
 
+	var result []byte
+	defer func() {
+		sendMail(result, toEmail, fromName, fromEmail, username, pass, host, port)
+	}()
+
+	cmd := exec.Command("unattended-upgrade", "-v", "--apt-debug", "--minimal-upgrade-steps")
+	result, err := cmd.CombinedOutput()
+	if err != nil {
+		result = []byte(fmt.Sprintf("ERROR: %s\n\n%s", err, result))
+	}
+
+}
+
+func sendMail(result []byte, toEmail, fromName, fromEmail, username, pass, host, port string) {
+
 	from := mail.Address{Name: fromName, Address: fromEmail}
 	to := mail.Address{Name: toEmail, Address: toEmail}
 
@@ -30,7 +46,7 @@ func main() {
 	}
 
 	subject := fmt.Sprintf("[%s] unattended-upgrade report", hostname)
-	body := "This is an example body.\n With two lines."
+	body := string(result)
 
 	// Setup headers
 	headers := make(map[string]string)
@@ -100,5 +116,4 @@ func main() {
 	}
 
 	c.Quit()
-
 }
