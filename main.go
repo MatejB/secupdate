@@ -8,7 +8,11 @@ import (
 	"net/smtp"
 	"os"
 	"os/exec"
+	"strings"
+	"time"
 )
+
+const dateFormat = "02.01.2006. 15:04:05"
 
 func main() {
 
@@ -22,12 +26,32 @@ func main() {
 	host := os.Getenv("SU_HOST")
 	port := os.Getenv("SU_PORT")
 
-	var result []byte
-	defer func() {
-		sendMail(result, toEmail, fromName, fromEmail, username, pass, host, port)
-	}()
+	verbose := strings.ToLower(os.Getenv("SU_VERBOSE"))
 
-	cmd := exec.Command("unattended-upgrade", "-v", "--apt-debug", "--minimal-upgrade-steps")
+	var result []byte
+	defer func(start time.Time) {
+
+		end := time.Now()
+		elapsed := time.Since(start)
+
+		result = []byte(fmt.Sprintf(
+			"Start: %s\nEnd: %s\nElapsed: %s\n\n%s",
+			start.Format(dateFormat),
+			end.Format(dateFormat),
+			elapsed,
+			result))
+
+		sendMail(result, toEmail, fromName, fromEmail, username, pass, host, port)
+
+	}(time.Now())
+
+	var params []string
+	switch verbose {
+	case "true", "on", "verbose", "1", "enable", "enabled":
+		params = []string{"-v", "--apt-debug", "--minimal-upgrade-steps"}
+	}
+
+	cmd := exec.Command("unattended-upgrade", params...)
 	result, err := cmd.CombinedOutput()
 	if err != nil {
 		result = []byte(fmt.Sprintf("ERROR: %s\n\n%s", err, result))
@@ -42,7 +66,7 @@ func sendMail(result []byte, toEmail, fromName, fromEmail, username, pass, host,
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("os.Hostname failed with %q", err)
 	}
 
 	subject := fmt.Sprintf("[%s] unattended-upgrade report", hostname)
@@ -84,36 +108,40 @@ func sendMail(result []byte, toEmail, fromName, fromEmail, username, pass, host,
 	if err != nil {
 		log.Fatalf("smtp.NewClient failed with %q", err)
 	}
+	defer func() {
+		err = c.Quit()
+		if err != nil {
+			log.Fatalf("smtp.Client.Quit failed with %q", err)
+		}
+	}()
 
 	// Auth
 	if err = c.Auth(auth); err != nil {
-		log.Fatalf("Auth failed with %q", err)
+		log.Fatalf("smtp.Client.Auth failed with %q", err)
 	}
 
 	// To && From
 	if err = c.Mail(from.Address); err != nil {
-		log.Fatalf("Mail failed with %q", err)
+		log.Fatalf("smtp.Client.Mail failed with %q", err)
 	}
 
 	if err = c.Rcpt(to.Address); err != nil {
-		log.Fatalf("Rcpt failed with %q", err)
+		log.Fatalf("smtp.Client.Rcpt failed with %q", err)
 	}
 
 	// Data
 	w, err := c.Data()
 	if err != nil {
-		log.Fatalf("Data failed with %q", err)
+		log.Fatalf("smtp.Client.Data failed with %q", err)
 	}
 
 	_, err = w.Write([]byte(message))
 	if err != nil {
-		log.Fatalf("Write failed with %q", err)
+		log.Fatalf("Msg Writer Write failed with %q", err)
 	}
 
 	err = w.Close()
 	if err != nil {
-		log.Fatalf("Close failed with %q", err)
+		log.Fatalf("Msg Writer Close failed with %q", err)
 	}
-
-	c.Quit()
 }
