@@ -33,4 +33,5 @@ SU_VERBOSE=""
 ```
 
 [Sample bash script](setenv_sample.sh) is provided for setting this variables.
+
 Don't forget to [set ENV variables permanently](http://unix.stackexchange.com/questions/117467/how-to-permanently-set-environmental-variables) if program will be run as cron job.
