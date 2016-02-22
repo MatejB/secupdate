@@ -48,7 +48,7 @@ func main() {
 	var params []string
 	switch verbose {
 	case "true", "on", "verbose", "1", "enable", "enabled":
-		params = []string{"-v", "--apt-debug", "--minimal-upgrade-steps"}
+		params = []string{"-v", "--apt-debug"}
 	}
 
 	cmd := exec.Command("unattended-upgrade", params...)
